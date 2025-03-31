@@ -3,11 +3,9 @@ from typing import List
 from fastapi import APIRouter, HTTPException, Depends, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
-
 from src.app.database.db import get_db
 from src.app.response.schemas import ContactBase
 from src.app.controllers.contacts import ContactsController
-from src.app.database.models import Contact
 
 
 router = APIRouter(prefix="/contacts", tags=["contacts"])
@@ -36,9 +34,13 @@ async def read_contact(contact_id: int, db: AsyncSession = Depends(get_db)):
 @router.post("/", response_model=ContactBase, status_code=status.HTTP_201_CREATED)
 async def create_contact(body: ContactBase, db: AsyncSession = Depends(get_db)):
     conctact_controller = ContactsController(db)
-    contact = Contact(**body.model_dump())  # Convert Pydantic model to SQLAlchemy model
-    conctact_controller.create_contact(contact)
-    return contact
+    try:    
+        contact = await conctact_controller.create_contact(body)
+        return contact
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail=str(e)
+        )
 
 
 @router.put("/{contact_id}", response_model=ContactBase)
@@ -63,3 +65,17 @@ async def remove_conctact(contact_id: int, db: AsyncSession = Depends(get_db)):
             status_code=status.HTTP_404_NOT_FOUND, detail="Note not found"
         )
     return contact
+
+@router.get("/contacts/search")
+async def search_contacts(
+    name: str = None, surname: str = None, email: str = None, db: AsyncSession = Depends(get_db)
+):
+    contact_controller = ContactsController(db)
+    contact = await contact_controller.search_contact(name, surname, email)
+    return contact
+
+@router.get("/contacts/upcoming-birthdays")
+async def upcoming_birthdays(db: AsyncSession = Depends(get_db)):
+    contact_controller = ContactsController(db)
+    birthdays = await contact_controller.get_upcoming_birthdays()
+    return birthdays
